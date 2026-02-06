@@ -1,14 +1,35 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getConfig } from "./configLoader";
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+let app;
+let auth;
+
+export const initializeFirebase = () => {
+  const config = getConfig();
+
+  const firebaseConfig = {
+    apiKey: config.firebase.apiKey,
+    authDomain: config.firebase.authDomain,
+    projectId: config.firebase.projectId,
+    storageBucket: config.firebase.storageBucket,
+    messagingSenderId: config.firebase.messagingSenderId,
+    appId: config.firebase.appId,
+  };
+
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+
+  return { app, auth };
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+export const getAuthInstance = () => {
+  if (!auth) {
+    throw new Error(
+      "Firebase not initialized. Call initializeFirebase() first.",
+    );
+  }
+  return auth;
+};
+
+export { auth };

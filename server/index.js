@@ -236,6 +236,31 @@ mongoose.connection.on("error", (err) => {
   logger.error("MongoDB error:", err);
 });
 
+// Config Endpoint - Serve client environment variables
+// Rate limited to prevent abuse
+const configLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // Reasonable limit for config fetches
+  message: "Too many config requests, please try again later.",
+});
+
+app.get("/api/config", configLimiter, (req, res) => {
+  // Set cache headers for config endpoint
+  res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
+
+  res.json({
+    apiUrl: process.env.VITE_API_URL || "",
+    firebase: {
+      apiKey: process.env.VITE_FIREBASE_API_KEY,
+      authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.VITE_FIREBASE_APP_ID,
+    },
+  });
+});
+
 // Health Check Endpoint
 app.get("/health", async (req, res) => {
   const health = {
