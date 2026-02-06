@@ -43,23 +43,17 @@ const port = process.env.PORT || 5000;
 // Trust proxy (needed for Azure App Service)
 app.set("trust proxy", 1);
 
+// Serve static files FIRST (PRODUCTION ONLY)
+if (process.env.NODE_ENV === "production") {
+  const clientBuildPath = path.join(__dirname, "client", "dist");
+  app.use(express.static(clientBuildPath));
+  logger.info(`Serving static files from: ${clientBuildPath}`);
+}
+
 // Security Headers
 app.use(
   helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: [
-          "'self'",
-          "https://firebaseinstallations.googleapis.com",
-          "https://*.firebaseio.com",
-          "wss://*.firebaseio.com",
-        ],
-      },
-    },
+    contentSecurityPolicy: false, // Disable CSP for now to allow scripts
     crossOriginEmbedderPolicy: false,
   }),
 );
@@ -277,14 +271,6 @@ app.get("/health", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => {
-  res.json({
-    message: "MUST Capacity Finder API",
-    version: "1.0.0",
-    status: "Running",
-  });
-});
-
 // API Route to save alert request
 app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
   try {
@@ -393,17 +379,17 @@ app.put("/api/alerts/:id", verifyToken, async (req, res) => {
   }
 });
 
-// Serve static files from React build (PRODUCTION ONLY)
+// Fallback: serve index.html for SPA routing (PRODUCTION ONLY)
 if (process.env.NODE_ENV === "production") {
   const clientBuildPath = path.join(__dirname, "client", "dist");
-  app.use(express.static(clientBuildPath));
-
-  // Serve index.html for all non-API routes (React Router)
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(clientBuildPath, "index.html"));
+  app.use((req, res, next) => {
+    // Only serve HTML for non-API routes and non-file requests
+    if (!req.path.startsWith("/api") && !req.path.match(/\.\w+$/)) {
+      res.sendFile(path.join(clientBuildPath, "index.html"));
+    } else {
+      next();
+    }
   });
-
-  logger.info(`Serving static files from: ${clientBuildPath}`);
 }
 
 // Global error handler
@@ -423,24 +409,22 @@ const server = app.listen(port, () => {
 });
 
 // Graceful shutdown
-process.on("SIGTERM", () => {
+process.on("SIGTERM", async () => {
   logger.info("SIGTERM signal received: closing HTTP server");
-  server.close(() => {
+  server.close(async () => {
     logger.info("HTTP server closed");
-    mongoose.connection.close(false, () => {
-      logger.info("MongoDB connection closed");
-      process.exit(0);
-    });
+    await mongoose.connection.close();
+    logger.info("MongoDB connection closed");
+    process.exit(0);
   });
 });
 
-process.on("SIGINT", () => {
+process.on("SIGINT", async () => {
   logger.info("SIGINT signal received: closing HTTP server");
-  server.close(() => {
+  server.close(async () => {
     logger.info("HTTP server closed");
-    mongoose.connection.close(false, () => {
-      logger.info("MongoDB connection closed");
-      process.exit(0);
-    });
+    await mongoose.connection.close();
+    logger.info("MongoDB connection closed");
+    process.exit(0);
   });
 });
