@@ -9,7 +9,6 @@ const compression = require("compression");
 const { body, validationResult } = require("express-validator");
 const winston = require("winston");
 const morgan = require("morgan");
-const path = require("path");
 const AlertRequest = require("./models/AlertRequest");
 
 dotenv.config();
@@ -43,17 +42,17 @@ const port = process.env.PORT || 5000;
 // Trust proxy (needed for Azure App Service)
 app.set("trust proxy", 1);
 
-// Serve static files FIRST (PRODUCTION ONLY)
-if (process.env.NODE_ENV === "production") {
-  const clientBuildPath = path.join(__dirname, "client", "dist");
-  app.use(express.static(clientBuildPath));
-  logger.info(`Serving static files from: ${clientBuildPath}`);
-}
-
 // Security Headers
 app.use(
   helmet({
-    contentSecurityPolicy: false, // Disable CSP for now to allow scripts
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
+    },
     crossOriginEmbedderPolicy: false,
   }),
 );
@@ -64,7 +63,7 @@ app.use(compression());
 // CORS Configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
-  : ["http://localhost:5173", "http://localhost:4173", "http://localhost:3000"];
+  : ["http://localhost:5173", "http://localhost:3000"];
 
 app.use(
   cors({
@@ -166,7 +165,6 @@ const verifyToken = async (req, res, next) => {
   const idToken = req.headers.authorization?.split("Bearer ")[1];
 
   if (!idToken) {
-    logger.warn("Authentication attempt without token");
     return res.status(401).json({ error: "No token provided" });
   }
 
@@ -175,7 +173,7 @@ const verifyToken = async (req, res, next) => {
     req.user = decodedToken;
     next();
   } catch (error) {
-    logger.error("Token verification failed:", error.message);
+    console.error("Error verifying token:", error);
     res.status(403).json({ error: "Unauthorized" });
   }
 };
@@ -236,31 +234,6 @@ mongoose.connection.on("error", (err) => {
   logger.error("MongoDB error:", err);
 });
 
-// Config Endpoint - Serve client environment variables
-// Rate limited to prevent abuse
-const configLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // Reasonable limit for config fetches
-  message: "Too many config requests, please try again later.",
-});
-
-app.get("/api/config", configLimiter, (req, res) => {
-  // Set cache headers for config endpoint
-  res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
-
-  res.json({
-    apiUrl: process.env.VITE_API_URL || "",
-    firebase: {
-      apiKey: process.env.VITE_FIREBASE_API_KEY,
-      authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.VITE_FIREBASE_APP_ID,
-    },
-  });
-});
-
 // Health Check Endpoint
 app.get("/health", async (req, res) => {
   const health = {
@@ -296,7 +269,31 @@ app.get("/health", async (req, res) => {
   }
 });
 
-// API Route to save alert request
+app.get("/", (req, res) => {
+  res.json({
+    message: "MUST Capacity Finder API",
+    version: "1.0.0",
+    status: "Running",
+  });
+});
+
+// Config endpoint for frontend
+app.get("/api/config", (req, res) => {
+  res.json({
+    apiUrl: process.env.API_URL || "",
+    baseUrl: process.env.BASE_URL || "",
+    firebase: {
+      apiKey: process.env.FIREBASE_API_KEY,
+      authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.FIREBASE_APP_ID,
+    },
+  });
+});
+
+// API Route to create alert request
 app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
   try {
     // Check validation errors
@@ -308,25 +305,15 @@ app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
     const { subject, course_number, crn, whatsappNumber } = req.body;
     const userId = req.user.uid;
 
-    // Check limit (Controlled via Firebase Firestore)
-    let maxAlerts = 2;
+    // Check user alert limit from Firestore
+    let maxAlerts = 2; // Default limit
     try {
       const db = admin.firestore();
       const userRef = db.collection("users").doc(userId);
       const userDoc = await userRef.get();
 
-      if (!userDoc.exists) {
-        // First time seeing this user -> Create them in Firestore
-        await userRef.set({
-          email: req.user.email,
-          maxAlerts: 2,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      } else {
-        // User exists -> Use their custom limit
-        if (userDoc.data().maxAlerts) {
-          maxAlerts = userDoc.data().maxAlerts;
-        }
+      if (userDoc.exists && userDoc.data().maxAlerts) {
+        maxAlerts = userDoc.data().maxAlerts;
       }
     } catch (error) {
       logger.warn("Firestore check failed (using default 2):", error.message);
@@ -334,9 +321,11 @@ app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
 
     const existingRequests = await AlertRequest.countDocuments({ userId });
     if (existingRequests >= maxAlerts) {
-      return res.status(400).json({
-        error: `Limit reached. You can only have ${maxAlerts} active alerts.`,
-      });
+      return res
+        .status(400)
+        .json({
+          error: `Limit reached. You can only have ${maxAlerts} active alerts.`,
+        });
     }
 
     const newRequest = new AlertRequest({
@@ -367,12 +356,12 @@ app.get("/api/alerts", verifyToken, async (req, res) => {
     });
     res.status(200).json(requests);
   } catch (error) {
-    logger.error("Error fetching alerts:", error);
+    console.error("Error fetching alerts:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// API Route to update an alert request
+// APIloggerto update an alert request
 app.put("/api/alerts/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.user.uid;
@@ -399,25 +388,15 @@ app.put("/api/alerts/:id", verifyToken, async (req, res) => {
       .status(200)
       .json({ message: "Request updated successfully", data: request });
   } catch (error) {
-    logger.error("Error updating alert:", error);
-    res.status(500).json({ error: "Server error" });
+    console.error("Error updating alert:", error);
+    logger.status(500).json({ error: "Server error" });
   }
 });
 
-// Fallback: serve index.html for SPA routing (PRODUCTION ONLY)
-if (process.env.NODE_ENV === "production") {
-  const clientBuildPath = path.join(__dirname, "client", "dist");
-  app.use((req, res, next) => {
-    // Only serve HTML for non-API routes and non-file requests
-    if (!req.path.startsWith("/api") && !req.path.match(/\.\w+$/)) {
-      res.sendFile(path.join(clientBuildPath, "index.html"));
-    } else {
-      next();
-    }
-  });
-}
-
-// Global error handler
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+logger; // Global error handler
 app.use((err, req, res, next) => {
   logger.error("Unhandled error:", err);
   res.status(500).json({
@@ -434,22 +413,24 @@ const server = app.listen(port, () => {
 });
 
 // Graceful shutdown
-process.on("SIGTERM", async () => {
+process.on("SIGTERM", () => {
   logger.info("SIGTERM signal received: closing HTTP server");
-  server.close(async () => {
+  server.close(() => {
     logger.info("HTTP server closed");
-    await mongoose.connection.close();
-    logger.info("MongoDB connection closed");
-    process.exit(0);
+    mongoose.connection.close(false, () => {
+      logger.info("MongoDB connection closed");
+      process.exit(0);
+    });
   });
 });
 
-process.on("SIGINT", async () => {
+process.on("SIGINT", () => {
   logger.info("SIGINT signal received: closing HTTP server");
-  server.close(async () => {
+  server.close(() => {
     logger.info("HTTP server closed");
-    await mongoose.connection.close();
-    logger.info("MongoDB connection closed");
-    process.exit(0);
+    mongoose.connection.close(false, () => {
+      logger.info("MongoDB connection closed");
+      process.exit(0);
+    });
   });
 });
