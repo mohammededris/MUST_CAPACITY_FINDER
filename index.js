@@ -293,7 +293,48 @@ app.get("/api/config", (req, res) => {
   });
 });
 
-// API Route to create alert request
+app.post("/api/users/ensure", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const userEmail = req.user.email || "";
+
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      // Create new user document with default limit
+      await userRef.set({
+        email: userEmail,
+        maxAlerts: 2,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      logger.info(`Created new user in Firestore: ${userId} (${userEmail})`);
+      return res.status(201).json({
+        message: "User created",
+        maxAlerts: 2,
+        isNew: true,
+      });
+    } else {
+      // User already exists
+      const userData = userDoc.data();
+      return res.status(200).json({
+        message: "User exists",
+        maxAlerts: userData.maxAlerts || 2,
+        isNew: false,
+      });
+    }
+  } catch (error) {
+    logger.error("Error ensuring user exists:", error);
+    // Don't fail the request, just log the error
+    res.status(200).json({
+      message: "User check completed with warnings",
+      maxAlerts: 2,
+      isNew: false,
+    });
+  }
+});
+
 app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
   try {
     // Check validation errors
@@ -304,9 +345,9 @@ app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
 
     const { subject, course_number, crn, whatsappNumber } = req.body;
     const userId = req.user.uid;
+    const userEmail = req.user.email || "";
 
-    // Check user alert limit from Firestore
-    let maxAlerts = 2; // Default limit
+    let maxAlerts = 2;
     try {
       const db = admin.firestore();
       const userRef = db.collection("users").doc(userId);
@@ -314,6 +355,17 @@ app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
 
       if (userDoc.exists && userDoc.data().maxAlerts) {
         maxAlerts = userDoc.data().maxAlerts;
+      } else if (!userDoc.exists) {
+        // Create user if doesn't exist (fallback)
+        await userRef.set({
+          email: userEmail,
+          maxAlerts: 2,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        logger.info(
+          `Created new user in Firestore (fallback): ${userId} (${userEmail})`,
+        );
+        maxAlerts = 2;
       }
     } catch (error) {
       logger.warn("Firestore check failed (using default 2):", error.message);
@@ -321,11 +373,9 @@ app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
 
     const existingRequests = await AlertRequest.countDocuments({ userId });
     if (existingRequests >= maxAlerts) {
-      return res
-        .status(400)
-        .json({
-          error: `Limit reached. You can only have ${maxAlerts} active alerts.`,
-        });
+      return res.status(400).json({
+        error: `Limit reached. You can only have ${maxAlerts} active alerts.`,
+      });
     }
 
     const newRequest = new AlertRequest({
@@ -347,7 +397,6 @@ app.post("/api/alerts", verifyToken, validateAlertRequest, async (req, res) => {
   }
 });
 
-// API Route to fetch user's alert requests
 app.get("/api/alerts", verifyToken, async (req, res) => {
   try {
     const userId = req.user.uid;
@@ -361,7 +410,6 @@ app.get("/api/alerts", verifyToken, async (req, res) => {
   }
 });
 
-// APIloggerto update an alert request
 app.put("/api/alerts/:id", verifyToken, async (req, res) => {
   try {
     const userId = req.user.uid;
@@ -396,6 +444,7 @@ app.put("/api/alerts/:id", verifyToken, async (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
 logger; // Global error handler
 app.use((err, req, res, next) => {
   logger.error("Unhandled error:", err);

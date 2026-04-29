@@ -11,16 +11,16 @@ echo "========================================="
 echo ""
 
 # Check if we're in the right directory
-if [ ! -f "server/package.json" ] || [ ! -f "client/package.json" ]; then
+if [ ! -f "package.json" ] || [ ! -f "client/package.json" ]; then
     echo "❌ Error: Run this script from the project root directory"
     echo "   Expected: /var/www/must-capacity-finder"
     exit 1
 fi
 
 # Check for .env file
-if [ ! -f "server/.env" ]; then
-    echo "❌ Error: server/.env file not found!"
-    echo "   Copy server/.env.example to server/.env and fill in your values"
+if [ ! -f ".env" ]; then
+    echo "❌ Error: .env file not found!"
+    echo "   Copy .env.example to .env and fill in your values"
     echo "   Required: MONGO_URI, FIREBASE_SERVICE_ACCOUNT, Firebase client config, ALLOWED_ORIGINS"
     exit 1
 fi
@@ -30,9 +30,7 @@ echo ""
 
 # Install backend dependencies
 echo "📦 Installing backend dependencies..."
-cd server
 npm install --production
-cd ..
 echo "✅ Backend dependencies installed"
 echo ""
 

@@ -1,12 +1,13 @@
 {
-  "name": "server",
+  "name": "must-capacity-finder",
   "version": "1.0.0",
   "description": "MUST Capacity Finder API - Backend Server",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "build:client": "cd client && npm install && npm run build"
   },
   "keywords": [
     "must",

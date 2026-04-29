@@ -265,7 +265,9 @@ export default function LandingPage() {
                 </h3>
                 <div className="input-group">
                   <label>Subject Code</label>
-                  <div style={{ display: "flex", gap: "5px" }}>
+                  <div
+                    style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}
+                  >
                     <input
                       type="text"
                       placeholder="Subject e.g. CSE3"
@@ -278,7 +280,10 @@ export default function LandingPage() {
                         )
                       }
                       required
-                      style={{ flex: 1, minWidth: "170px" }}
+                      style={{
+                        flex: "1 1 calc(33.333% - 4px)",
+                        minWidth: "150px",
+                      }}
                     />
                     <input
                       type="text"
@@ -288,7 +293,10 @@ export default function LandingPage() {
                         setCourseNumber(e.target.value.replace(/[^0-9]/g, ""))
                       }
                       required
-                      style={{ flex: 1, minWidth: "170px" }}
+                      style={{
+                        flex: "1 1 calc(33.333% - 4px)",
+                        minWidth: "150px",
+                      }}
                     />
                     <input
                       type="text"
@@ -298,7 +306,10 @@ export default function LandingPage() {
                         setCrn(e.target.value.replace(/[^0-9]/g, ""))
                       }
                       required
-                      style={{ flex: 1, minWidth: "170px" }}
+                      style={{
+                        flex: "1 1 calc(33.333% - 4px)",
+                        minWidth: "150px",
+                      }}
                     />
                   </div>
                 </div>
@@ -384,12 +395,15 @@ export default function LandingPage() {
                           borderRadius: "8px",
                           padding: "1rem",
                           display: "flex",
+                          flexDirection: "row",
                           justifyContent: "space-between",
                           alignItems: "center",
                           opacity: req.stopped ? 0.7 : 1,
+                          flexWrap: "wrap",
+                          gap: "0.75rem",
                         }}
                       >
-                        <div>
+                        <div style={{ flex: "1 1 200px" }}>
                           <div
                             style={{ fontWeight: "bold", fontSize: "1.1rem" }}
                           >
@@ -418,8 +432,9 @@ export default function LandingPage() {
                         <div
                           style={{
                             display: "flex",
-                            flexDirection: "column",
+                            flexDirection: "row",
                             gap: "5px",
+                            flexWrap: "wrap",
                           }}
                         >
                           <button
@@ -428,7 +443,7 @@ export default function LandingPage() {
                               background: "#3B82F6",
                               color: "white",
                               border: "none",
-                              padding: "5px 10px",
+                              padding: "8px 16px",
                               borderRadius: "4px",
                               cursor: "pointer",
                               fontSize: "0.9rem",
@@ -442,7 +457,7 @@ export default function LandingPage() {
                               background: req.stopped ? "#10B981" : "#EF4444",
                               color: "white",
                               border: "none",
-                              padding: "5px 10px",
+                              padding: "8px 16px",
                               borderRadius: "4px",
                               cursor: "pointer",
                               fontSize: "0.9rem",
