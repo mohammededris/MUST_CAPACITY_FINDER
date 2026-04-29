@@ -6,6 +6,7 @@ const admin = require("firebase-admin");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const compression = require("compression");
+const path = require("path");
 const { body, validationResult } = require("express-validator");
 const winston = require("winston");
 const morgan = require("morgan");
@@ -269,14 +270,6 @@ app.get("/health", async (req, res) => {
   }
 });
 
-app.get("/", (req, res) => {
-  res.json({
-    message: "MUST Capacity Finder API",
-    version: "1.0.0",
-    status: "Running",
-  });
-});
-
 // Config endpoint for frontend
 app.get("/api/config", (req, res) => {
   res.json({
@@ -441,8 +434,11 @@ app.put("/api/alerts/:id", verifyToken, async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+// Serve static frontend files
+app.use(express.static(path.join(__dirname, "client/dist")));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "client/dist/index.html"));
 });
 
 logger; // Global error handler
