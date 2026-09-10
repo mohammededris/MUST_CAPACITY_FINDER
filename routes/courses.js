@@ -10,11 +10,17 @@ router.get("/", async (req, res) => {
   if (!isAuthenticated) {
     return res.status(401).json({ error: "Unauthorized" });
   }
+
+  const clerkUser = await clerkClient.users.getUser(userId);
+  const alertLimit = Number(clerkUser.publicMetadata?.numOfAlertsLimit ?? 2);
+
   const notifications = await Notification.find({ userId });
   if (!notifications) {
     return res.status(404).json({ error: "No notifications found" });
   }
-  res.status(200).json({ notifications });
+  res
+    .status(200)
+    .json({ notifications, alertLimit, alertCount: notifications.length });
 });
 
 router.post("/", async (req, res) => {
