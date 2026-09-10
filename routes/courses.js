@@ -92,6 +92,7 @@ router.patch("/stop/:id", async (req, res) => {
   }
 
   notification.stopAlert = true;
+  notification.messageSent = 0;
 
   await notification.save();
   res.status(200).json({ message: "Alert request updated successfully" });
@@ -110,6 +111,7 @@ router.patch("/start/:id", async (req, res) => {
   }
 
   notification.stopAlert = false;
+  notification.messageSent = 0;
 
   await notification.save();
   res.status(200).json({ message: "Alert request updated successfully" });
