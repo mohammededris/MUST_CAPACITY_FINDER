@@ -73,6 +73,7 @@ router.put("/:id", async (req, res) => {
   notification.courseCode = courseCode;
   notification.crn = crn;
   notification.whatsAppNumber = whatsAppNumber;
+  notification.messageSent = 0;
 
   await notification.save();
   res.status(200).json({ message: "Alert request updated successfully" });
