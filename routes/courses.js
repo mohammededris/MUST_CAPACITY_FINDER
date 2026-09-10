@@ -22,6 +22,18 @@ router.post("/", async (req, res) => {
   if (!isAuthenticated) {
     return res.status(401).json({ error: "Unauthorized" });
   }
+  const clerkUser = await clerkClient.users.getUser(userId);
+  const alertLimit = Number(clerkUser.publicMetadata?.numOfAlertsLimit ?? 1);
+
+  const existingAlerts = await Notification.countDocuments({ userId });
+
+  if (existingAlerts >= alertLimit) {
+    return res.status(409).json({
+      message: `You can only create ${alertLimit} alert request${
+        alertLimit === 1 ? "" : "s"
+      }.`,
+    });
+  }
 
   const { subject, courseCode, crn, whatsAppNumber, userName } = req.body;
 
@@ -44,7 +56,7 @@ router.put("/:id", async (req, res) => {
   }
 
   const { id } = req.params;
-  const { subject, courseCode, crn, whatsAppNumber, userName } = req.body;
+  const { subject, courseCode, crn, whatsAppNumber } = req.body;
 
   const notification = await Notification.findOne({ _id: id, userId });
   if (!notification) {
@@ -55,7 +67,6 @@ router.put("/:id", async (req, res) => {
   notification.courseCode = courseCode;
   notification.crn = crn;
   notification.whatsAppNumber = whatsAppNumber;
-  notification.userName = userName;
 
   await notification.save();
   res.status(200).json({ message: "Alert request updated successfully" });
@@ -74,6 +85,24 @@ router.patch("/stop/:id", async (req, res) => {
   }
 
   notification.stopAlert = true;
+
+  await notification.save();
+  res.status(200).json({ message: "Alert request updated successfully" });
+});
+
+router.patch("/start/:id", async (req, res) => {
+  const { isAuthenticated, userId } = getAuth(req);
+  if (!isAuthenticated) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const { id } = req.params;
+  const notification = await Notification.findOne({ _id: id, userId });
+  if (!notification) {
+    return res.status(404).json({ error: "Notification not found" });
+  }
+
+  notification.stopAlert = false;
 
   await notification.save();
   res.status(200).json({ message: "Alert request updated successfully" });
