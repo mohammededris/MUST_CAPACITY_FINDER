@@ -18,7 +18,7 @@ router.put("/:id", async (req, res) => {
   if (req.headers.password !== password) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  const id = req.params;
+  const id = req.params.id;
   const { stopAlert, messageSent } = req.body;
   const notification = await Notification.findByIdAndUpdate(id, {
     stopAlert,
