@@ -12,6 +12,7 @@ dns.setServers(["8.8.8.8", "1.1.1.1"]);
 import { coursesRouter } from "./routes/courses.js";
 import { workerRouter } from "./routes/worker.js";
 import { usersRouter } from "./routes/users.js";
+import { inputRouter } from "./routes/input.js";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use(clerkMiddleware());
 app.use("/api/v1/worker", workerRouter);
 app.use("/api/v1/courses", coursesRouter);
 app.use("/api/v1/users", usersRouter);
+app.use("/api/v1/search", inputRouter);
 
 try {
   await mongoose.connect(process.env.MONGODB_URI);
