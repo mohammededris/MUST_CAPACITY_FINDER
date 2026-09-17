@@ -1,9 +1,31 @@
+import "dotenv/config";
 import express from "express";
 import { clerkClient } from "@clerk/express";
 
 import { Notification } from "../models/Notification.js";
+import { redis } from "../lib/redis.js";
 
 const router = express.Router();
+
+async function getUserEmail(userId) {
+  const cacheKey = `user-email:${userId}`;
+  const cachedEmail = await redis.get(cacheKey);
+
+  if (cachedEmail !== null) {
+    return cachedEmail;
+  }
+
+  const clerkUser = await clerkClient.users.getUser(userId);
+
+  const email =
+    clerkUser.emailAddresses.find(
+      (address) => address.id === clerkUser.primaryEmailAddressId,
+    )?.emailAddress ?? null;
+
+  await redis.set(cacheKey, email ?? "", { ex: 3600 });
+
+  return email;
+}
 
 router.get("/", async (req, res) => {
   const password = process.env.WORKER_PASSWORD;
@@ -15,14 +37,8 @@ router.get("/", async (req, res) => {
     const notificationsWithEmail = await Promise.all(
       notifications.map(async (notification) => {
         try {
-          const clerkUser = await clerkClient.users.getUser(
-            notification.userId,
-          );
-
-          const primaryEmail = clerkUser.emailAddresses.find(
-            (email) => email.id === clerkUser.primaryEmailAddressId,
-          )?.emailAddress;
-
+          const email = await getUserEmail(notification.userId);
+          const primaryEmail = email ?? null;
           return {
             ...notification.toObject(),
             email: primaryEmail ?? null,

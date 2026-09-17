@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { clerkMiddleware } from "@clerk/express";
 import mongoose from "mongoose";
@@ -6,7 +7,6 @@ import dotenv from "dotenv";
 import cors from "cors";
 import dns from "dns";
 
-dotenv.config();
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 import { coursesRouter } from "./routes/courses.js";
